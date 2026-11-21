@@ -167,6 +167,7 @@ namespace ShorelandsBillboard
             if (font != null) label.font = font;
             label.rectTransform.sizeDelta = new Vector2(Layout.ScreenW, Layout.ScreenH) / 10f;
             label.alignment = TextAlignmentOptions.Center;
+            label.textWrappingMode = TextWrappingModes.NoWrap;
             label.fontSize = 18; label.lineSpacing = 20;
             label.color = new Color(0.78f, 0.82f, 0.9f);
             label.sortingLayerID = town.SortingLayer; label.sortingOrder = order + 3;
@@ -310,7 +311,18 @@ namespace ShorelandsBillboard
             }
             if (status == shownStatus) return;
             shownStatus = status;
-            if (status != null) label.text = status + "\n<size=9>twitch.tv/<noparse>" + Plain(channel) + "</noparse></size>";
+            if (status != null) label.text = status + "\n" + ChannelLine(Plain(channel));
+        }
+
+        // The channel under the status: with its address if that fits the screen, else the name, cut if it must be.
+        string ChannelLine(string name)
+        {
+            const float room = Layout.ScreenW - 8;
+            string Line(string text) => "<size=9><noparse>" + text + "</noparse></size>";
+            bool Fits(string text) => label.GetPreferredValues(Line(text)).x * 10f <= room;
+            if (Fits("twitch.tv/" + name)) return Line("twitch.tv/" + name);
+            while (name.Length > 1 && !Fits(name)) name = name.Substring(0, name.Length - 1);
+            return Line(name);
         }
 
         // a config value as text on the screen: no markup, no more than fits
