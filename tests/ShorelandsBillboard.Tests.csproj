@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Runs the plugin's core (no Unity) against recorded Twitch responses in fixtures/ and the frame art in ../art. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>disable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>disable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="..\src\Core\*.cs" />
+    <Reference Include="Newtonsoft.Json"><HintPath>$(GameManaged)\Newtonsoft.Json.dll</HintPath></Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <RuntimeHostConfigurationOption Include="ShorelandsBillboard.Tests.Fixtures" Value="$(MSBuildProjectDirectory)\fixtures" />
+    <RuntimeHostConfigurationOption Include="ShorelandsBillboard.Tests.Art" Value="$(MSBuildProjectDirectory)\..\art" />
+    <RuntimeHostConfigurationOption Include="ShorelandsBillboard.Tests.Managed" Value="$(GameManaged)" />
+  </ItemGroup>
+</Project>

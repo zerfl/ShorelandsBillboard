@@ -1,0 +1,97 @@
+ShorelandsBillboard: third-party notices
+========================================
+
+This package contains the mod's own file (ShorelandsBillboard.dll, MIT License, see LICENSE) and,
+unchanged, the third-party software listed below. The third-party files are separate files that the mod
+loads at run time; nothing of them is merged into ShorelandsBillboard.dll. You may replace them with your
+own builds of the same libraries (same file names and folders).
+
+Source code of the LGPL libraries: the files in this package are the unmodified binaries that VideoLAN
+publishes in the NuGet packages named below (package id, version and SHA-256 are given for each). Their
+source code is not part of this package and is not hosted with it; it is available from VideoLAN at the
+addresses given under "Source" for each library.
+
+
+1. libVLC 3.0.24 "Vetinari" (build 3.0.24-rc1-0-g6de05adcba), Windows x64
+---------------------------------------------------------------------------
+
+Files:      libvlc\libvlc.dll, libvlc\libvlccore.dll and the 18 modules under libvlc\plugins\
+Copyright:  the VideoLAN team and VLC contributors
+Licence:    GNU Lesser General Public License, version 2.1 or later (licenses\LGPL-2.1.txt)
+Taken from: NuGet package VideoLAN.LibVLC.Windows 3.0.24 (build\x64\)
+            https://www.nuget.org/packages/VideoLAN.LibVLC.Windows/3.0.24
+            SHA-256 of the package: 3da3f37ee2b2b10e5c788d830a3b513658c36521ea1b0f966ed86eb69f41ef3c
+Source:     https://download.videolan.org/pub/videolan/vlc/3.0.24/vlc-3.0.24.tar.xz
+            https://code.videolan.org/videolan/vlc (tag 3.0.24)
+            How VideoLAN packages it: https://code.videolan.org/videolan/libvlc-nuget
+
+Only a part of that package is included: the modules needed to read an MPEG transport stream from memory,
+decode H.264 video and AAC sound, and hand pictures and sound back in memory:
+
+  access\libimem_plugin.dll                    stream_filter\libprefetch_plugin.dll
+  stream_filter\libcache_read_plugin.dll       demux\libts_plugin.dll
+  packetizer\libpacketizer_h264_plugin.dll     packetizer\libpacketizer_mpeg4audio_plugin.dll
+  codec\libavcodec_plugin.dll                  video_chroma\libswscale_plugin.dll
+  video_output\libvmem_plugin.dll              audio_output\libamem_plugin.dll
+  audio_mixer\libfloat_mixer_plugin.dll        audio_mixer\libinteger_mixer_plugin.dll
+  audio_filter\libaudio_format_plugin.dll      audio_filter\libspeex_resampler_plugin.dll
+  audio_filter\libugly_resampler_plugin.dll    audio_filter\libsimple_channel_mixer_plugin.dll
+  audio_filter\libtrivial_channel_mixer_plugin.dll   text_renderer\libtdummy_plugin.dll
+
+Each of these modules declares the LGPL 2.1 or later as its licence (the licence entry compiled into the
+module). The modules of VLC that are under the GNU General Public License (for example the x264 encoder)
+are in the NuGet package but not in this one.
+
+Libraries compiled into those files by VideoLAN's build (sources and versions: contrib/src/<name>/ in
+the VLC source tree above, which names the download address of each):
+
+  FFmpeg 8.1.2 (libavcodec, libavutil, libswscale) in libavcodec_plugin.dll and libswscale_plugin.dll.
+      LGPL 2.1 or later: VLC configures it without --enable-gpl, --enable-version3 and --enable-nonfree
+      (contrib/src/ffmpeg/rules.mak). Source: https://ffmpeg.org/releases/ffmpeg-8.1.2.tar.xz plus the
+      patches in contrib/src/ffmpeg/ of the VLC source.
+  LAME (LGPL 2 or later), OpenJPEG (BSD 2-clause), libgsm (permissive, TU Berlin), zlib (zlib licence):
+      linked into FFmpeg.
+  libdvbpsi (LGPL 2.1 or later) in libts_plugin.dll.
+  Speex resampler (BSD 3-clause, Xiph.Org Foundation and others) in libspeex_resampler_plugin.dll.
+  Small runtime libraries of VideoLAN's toolchain, such as the gettext runtime (LGPL 2.1 or later) and
+      the mingw-w64 runtime, in libvlccore.dll and the modules.
+
+
+2. LibVLCSharp 3.10.2
+---------------------
+
+File:       LibVLCSharp.dll (the netstandard2.1 build)
+Copyright:  VideoLAN and LibVLCSharp contributors
+Licence:    GNU Lesser General Public License, version 2.1 or later (licenses\LGPL-2.1.txt)
+Taken from: NuGet package LibVLCSharp 3.10.2 (lib\netstandard2.1\)
+            https://www.nuget.org/packages/LibVLCSharp/3.10.2
+            SHA-256 of the package: a7473e6d7c3595c74d3fb42bb0791053224d07b797adcee8c16f00e6f99bb8f9
+Source:     https://code.videolan.org/videolan/LibVLCSharp (tag 3.10.2,
+            commit 3082c09ca955131c705fc4767fde03e9c4a14999)
+
+
+3. Not included, but used if you choose it
+------------------------------------------
+
+ffmpeg.exe: the mod can start an ffmpeg you installed yourself (Decoder.Backend = ffmpeg). It is not part
+of this package.
+
+BepInEx 5 (LGPL 2.1): the mod loader this mod needs. Not part of this package; get it from
+https://github.com/BepInEx/BepInEx/releases
+
+
+4. The game
+-----------
+
+This mod is not made or supported by the game's developer.
+
+The billboard's frame, name plate, letters and shadow are the mod's own pictures (embedded in
+ShorelandsBillboard.dll), drawn for this mod in the game's style and with colours taken from the game's
+stalls. No file of the game is included in this package.
+
+While the game runs, the mod makes copies of a few of the game's own objects in memory: a lantern of the
+tree house (twice for the posts, once for the screen's glow), a tree's ground shadow light, and it uses
+the game's sprite material and status font. It hides five hedge bushes under the billboard and shows them
+again when the billboard is removed. Nothing is written to the game's files.
+
+Twitch is a trademark of Twitch Interactive, Inc. This mod is not affiliated with or endorsed by Twitch.
