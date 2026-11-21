@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -13,15 +14,15 @@ namespace ShorelandsBillboard
     // A billboard on the hedge line north of the town pond that shows a Twitch channel's live stream. Client only: scene
     // objects, libVLC in the process or an ffmpeg child process for decoding, Twitch's public playback endpoints.
     [BepInPlugin("com.zerfl.shorelands.billboard", "ShorelandsBillboard", BuildInfo.Version)]
-    public class BillboardPlugin : BaseUnityPlugin
+    public class BillboardPlugin : BaseUnityPlugin, IRemoteHost
     {
         static readonly Vector2 Place = new Vector2(Layout.DefaultX, Layout.DefaultY);
         const float Near = 5f;
         const int TownTries = 10, MaxFailures = 3, StreamLogLines = 20;
         const double NoPictureAfter = 20;
 
-        ConfigEntry<bool> enabledCfg, mute, sharp;
-        ConfigEntry<string> channel, ffmpegPath, quality, backend;
+        ConfigEntry<bool> enabledCfg, mute, sharp, remoteCfg;
+        ConfigEntry<string> channel, channels, ffmpegPath, quality, backend, remoteKey;
         ConfigEntry<float> volume, range, offsetX, offsetY;
 
         World world; Stream stream; Controller controller = new Controller();
@@ -36,11 +37,18 @@ namespace ShorelandsBillboard
         bool dead, townMissing, audioChanged, cameraHookOff; int failures, townTries, streamLogLines;
         string lastOutcome; volatile bool soundHeard; bool soundReported;
         DateTime configSeen;
+        // the remote: its list, the channel chosen but not yet connected, its own fail safe
+        List<string> list; int listVersion; bool committing, remoteDead;
+        readonly Tuner tuner = new Tuner(); readonly LiveLookup live = new LiveLookup();
+        RemoteUi remote;
 
         void Awake()
         {
             enabledCfg = Config.Bind("Billboard", "Enabled", true, "Show the billboard in town.");
-            channel = Config.Bind("Billboard", "Channel", "dunkorslam", "The Twitch channel to show: the name from its address, twitch.tv/NAME (letters, digits, underscore).");
+            string before = null;   // the file as the last version left it
+            try { if (File.Exists(Config.ConfigFilePath)) before = File.ReadAllText(Config.ConfigFilePath); } catch (Exception) { }
+            channels = Config.Bind("Billboard", "Channels", Channels.Shipped, "The remote's channel list, separated by commas: names from the channels' addresses, twitch.tv/NAME (letters, digits, underscore). The billboard starts on the first one.");
+            channel = Config.Bind("Billboard", "Channel", Channels.Shipped, "The channel that is on now. The remote changes it, and so can you here; at every game start it is set to the first entry of Channels.");
             quality = Config.Bind("Billboard", "Quality", "auto", new ConfigDescription("Stream quality. auto: just enough for the billboard's size on your screen (360p on a 1080p screen). Or a picture height; higher costs more bandwidth and CPU and rarely looks better at this size.", new AcceptableValueList<string>("auto", "160", "360", "480", "720")));
             sharp = Config.Bind("Billboard", "SharpPicture", true, "true: the picture is drawn at your screen's resolution, so text in the stream can be read. false: the picture is drawn in the game's pixel-art resolution (184x104 pixels).");
             volume = Config.Bind("Sound", "Volume", 0.6f, new ConfigDescription("Volume of the stream's sound when you stand at the billboard. The game's master volume applies on top.", new AcceptableValueRange<float>(0f, 1f)));
@@ -50,7 +58,18 @@ namespace ShorelandsBillboard
             offsetY = Config.Bind("Position", "OffsetY", 0f, new ConfigDescription("Moves the billboard north, in world units (negative: south).", new AcceptableValueRange<float>(-40f, 40f)));
             backend = Config.Bind("Decoder", "Backend", "auto", new ConfigDescription("What decodes the video. auto: the libVLC that comes with this mod, or ffmpeg if libVLC cannot be used. vlc: only libVLC. ffmpeg: only an ffmpeg.exe on this PC.", new AcceptableValueList<string>("auto", "vlc", "ffmpeg")));
             ffmpegPath = Config.Bind("Decoder", "FfmpegPath", "", "Full path of the ffmpeg.exe to use. Empty: the one found in PATH, in winget's install folders or in this mod's folder.");
-            Config.SettingChanged += (s, e) => { if (e.ChangedSetting.Definition.Section != "Sound") Teardown(); };   // sound settings are read every frame
+            remoteCfg = Config.Bind("Remote", "Enabled", true, "The remote: a button left of the game's menu button that opens a remote control for the billboard (channels, volume, on and off). false: no button, no remote.");
+            remoteKey = Config.Bind("Remote", "Key", "", "A key that opens and closes the remote, for example F8 or R. Empty: no key.");
+            list = Channels.Startup(before, channels.Value, channel.Value, out string first);
+            if (channels.Value != Channels.Format(list)) channels.Value = Channels.Format(list);
+            if (channel.Value != first) channel.Value = first;
+            Config.SettingChanged += (s, e) =>
+            {
+                var changed = e.ChangedSetting.Definition;
+                if (!committing && changed.Section == "Billboard" && changed.Key.StartsWith("Channel")) SyncList();
+                // sound settings are read every frame; the list and the remote are not part of the billboard
+                if (changed.Section != "Sound" && changed.Section != "Remote" && changed.Key != "Channels") Teardown();
+            };
             configSeen = ConfigTime();
             Application.onBeforeRender += KeepWorldUiCamera;
             AudioSettings.OnAudioConfigurationChanged += OnAudioChanged;
@@ -62,6 +81,7 @@ namespace ShorelandsBillboard
             Application.onBeforeRender -= KeepWorldUiCamera;
             AudioSettings.OnAudioConfigurationChanged -= OnAudioChanged;
             Teardown();
+            if (remote != null) { remote.Destroy(); remote = null; }
         }
 
         void OnApplicationQuit() { Teardown(); if (vlcUsed) WaitForVlc(); }
@@ -71,6 +91,17 @@ namespace ShorelandsBillboard
 
         void Update()
         {
+            if (!remoteDead)
+            {
+                try { RemoteStep(); }
+                catch (Exception e)
+                {
+                    remoteDead = true;
+                    try { remote?.Destroy(); } catch (Exception) { }
+                    remote = null;
+                    Logger.LogError($"the remote is switched off until the game restarts (game version {Application.version}): {e}");
+                }
+            }
             if (dead) return;
             try { Step(); }
             catch (Exception e) { Fail(e); }
@@ -179,11 +210,121 @@ namespace ShorelandsBillboard
         {
             if (now < configCheckAt) return;
             configCheckAt = now + 2;
+            ReloadIfSaved();
+        }
+
+        void ReloadIfSaved()
+        {
             var t = ConfigTime();
             if (t == configSeen) return;
             try { Config.Reload(); } catch (IOException) { return; }   // still being written: next time
             configSeen = ConfigTime();
+            SyncList();
         }
+
+        // A change made by the remote. What was saved into the file since it was last read comes first, so
+        // writing the file does not undo it; the plugin's own write is not read back.
+        void Commit(Action change)
+        {
+            ReloadIfSaved();
+            committing = true;
+            try { change(); } finally { committing = false; }
+            configSeen = ConfigTime();
+            SyncList();
+        }
+
+        void SyncList()
+        {
+            var now = Channels.Reconcile(channels.Value, channel.Value);
+            if (list.SequenceEqual(now)) return;
+            list = now; listVersion++;
+        }
+
+        void RemoteStep()
+        {
+            double now = Time.realtimeSinceStartupAsDouble;
+            string due = tuner.Due(now, channel.Value);
+            if (due != null) Commit(() => channel.Value = due);
+            if (!remoteCfg.Value || PlayerModel.LocalPlayer == null)
+            {
+                if (remote != null) { remote.Destroy(); remote = null; }
+                return;
+            }
+            if (remote == null) remote = new RemoteUi(this, Logger.LogWarning);
+            remote.Tick(now);
+            if (RemoteKeyPressed()) remote.Toggle();
+            if (remote.Open) live.Tick(now, list);
+        }
+
+        bool RemoteKeyPressed()
+        {
+            if (remoteKey.Value.Length == 0 || RemoteWindow.Typing || !Enum.TryParse(remoteKey.Value.Trim(), true, out UnityEngine.InputSystem.Key key) || key == UnityEngine.InputSystem.Key.None) return false;
+            var keyboard = UnityEngine.InputSystem.Keyboard.current;
+            return keyboard != null && keyboard[key].wasPressedThisFrame && !ReworkedCopium.Chat.ChatManager.HasFocus();
+        }
+
+        IList<string> IRemoteHost.List => list;
+        int IRemoteHost.ListVersion => listVersion;
+        string IRemoteHost.Channel => tuner.Pending ?? channel.Value;
+        bool IRemoteHost.Powered => enabledCfg.Value;
+        bool IRemoteHost.Muted => mute.Value;
+        float IRemoteHost.Volume => volume.Value;
+
+        string IRemoteHost.State
+        {
+            get
+            {
+                if (!enabledCfg.Value) return "OFF";
+                if (dead) return "ERROR";
+                if (townMissing) return "NO BILLBOARD";
+                if (tuner.Pending != null && tuner.Pending != channel.Value) return "CONNECTING";
+                if (world == null) return "STANDBY";
+                return lastStatus ?? "LIVE";
+            }
+        }
+
+        // what plays is live, whatever the last lookup said
+        bool? IRemoteHost.Live(string name) => playing && name == channel.Value ? true : live.Live(name);
+
+        void IRemoteHost.Tune(string name) => tuner.Request(name, Time.realtimeSinceStartupAsDouble);
+        void IRemoteHost.Step(int step) => tuner.Request(Channels.Step(list, tuner.Pending ?? channel.Value, step), Time.realtimeSinceStartupAsDouble);
+
+        AddResult IRemoteHost.Add(string typed)
+        {
+            var result = AddResult.Invalid;
+            Commit(() =>
+            {
+                var l = new List<string>(list);
+                result = Channels.Add(l, typed, out _);
+                if (result == AddResult.Added) channels.Value = Channels.Format(l);
+            });
+            return result;
+        }
+
+        bool IRemoteHost.Remove(string name)
+        {
+            bool removed = false;
+            Commit(() =>
+            {
+                var l = new List<string>(list); string on = channel.Value;
+                removed = Channels.Remove(l, name, ref on);
+                if (!removed) return;
+                if (tuner.Pending == name) tuner.Cancel();
+                channels.Value = Channels.Format(l);
+                if (on != channel.Value) channel.Value = on;
+            });
+            return removed;
+        }
+
+        void IRemoteHost.MakeDefault(string name) => Commit(() =>
+        {
+            var l = new List<string>(list);
+            if (Channels.MoveToTop(l, name)) channels.Value = Channels.Format(l);
+        });
+
+        void IRemoteHost.Power() => Commit(() => enabledCfg.Value = !enabledCfg.Value);
+        void IRemoteHost.Mute() => Commit(() => mute.Value = !mute.Value);
+        void IRemoteHost.VolumeStep(int step) => Commit(() => volume.Value = Channels.StepVolume(volume.Value, step));
 
         DateTime ConfigTime()
         {

@@ -85,10 +85,15 @@ $gameProperty = "-p:GameDir=$GameDir"
 $version = (& dotnet msbuild (Join-Path $root 'src') -nologo -getProperty:Version $gameProperty | Out-String).Trim()
 if ($version -notmatch '^\d+\.\d+\.\d+$') { Fail "not a version: '$version'" }
 $changelog = Get-Content (Join-Path $root 'CHANGELOG.md')
-$heading = $changelog | Where-Object { $_ -match "^## \[$([regex]::Escape($version))\] - (\d{4})-(\d{2})-(\d{2})\s*$" } | Select-Object -First 1
+$heading = $changelog | Where-Object { $_ -match "^## \[$([regex]::Escape($version))\] - ((\d{4})-(\d{2})-(\d{2})|Unreleased)\s*$" } | Select-Object -First 1
 if (-not $heading) { Fail "CHANGELOG.md has no entry for $version" }
-$null = $heading -match '(\d{4})-(\d{2})-(\d{2})'
-$date = New-Object DateTimeOffset ([int]$Matches[1]), ([int]$Matches[2]), ([int]$Matches[3]), 0, 0, 0, ([TimeSpan]::Zero)
+# A version that is not released yet packs for testing, with the oldest time a zip can hold.
+$unreleased = $heading -match 'Unreleased'
+if ($unreleased) { $date = New-Object DateTimeOffset 1980, 1, 1, 0, 0, 0, ([TimeSpan]::Zero) }
+else {
+    $null = $heading -match '(\d{4})-(\d{2})-(\d{2})'
+    $date = New-Object DateTimeOffset ([int]$Matches[1]), ([int]$Matches[2]), ([int]$Matches[3]), 0, 0, 0, ([TimeSpan]::Zero)
+}
 
 $tests = & dotnet run --project (Join-Path $root 'tests') -c Release -nologo -v q $gameProperty
 if ($LASTEXITCODE -ne 0) {
@@ -106,7 +111,7 @@ $target = Join-Path $stage $pluginPath
 New-Item -ItemType Directory -Force (Join-Path $target 'licenses'), (Join-Path $target 'docs') | Out-Null
 Copy-Item $dll, (Join-Path $root 'README.md'), (Join-Path $root 'CHANGELOG.md'), (Join-Path $root 'LICENSE'), (Join-Path $root 'THIRD-PARTY-NOTICES.txt') $target
 Copy-Item (Join-Path $root 'licenses/LGPL-2.1.txt') (Join-Path $target 'licenses')
-Copy-Item (Join-Path $root 'docs/billboard.png') (Join-Path $target 'docs')
+Copy-Item (Join-Path $root 'docs/billboard.png'), (Join-Path $root 'docs/remote.png') (Join-Path $target 'docs')
 
 $native = [IO.Compression.ZipFile]::OpenRead((Get-Package $packages[0]))
 try {
@@ -159,3 +164,4 @@ Remove-Item -Recurse -Force $stage
 
 Write-Host "ShorelandsBillboard $version, $($names.Count) files, $([math]::Round((Get-Item $zip).Length / 1MB, 1)) MB"
 Write-Host "SHA256 $((Get-FileHash $zip -Algorithm SHA256).Hash.ToLowerInvariant())  $zip"
+if ($unreleased) { Write-Host "UNRELEASED: a package for testing. Put the release date into CHANGELOG.md before publishing $version." }

@@ -90,7 +90,7 @@ namespace ShorelandsBillboard
         }
 
 
-        HttpWebRequest Request(string method, string url)
+        static HttpWebRequest Request(string method, string url)
         {
             var r = (HttpWebRequest)WebRequest.Create(url);
             r.Method = method; r.UserAgent = Twitch.UserAgent; r.Timeout = 10000; r.ReadWriteTimeout = 10000;
@@ -99,7 +99,7 @@ namespace ShorelandsBillboard
             return r;
         }
 
-        string Http(string method, string url, string body, out int status)
+        internal static string Http(string method, string url, string body, out int status)
         {
             var r = Request(method, url);
             if (body != null)

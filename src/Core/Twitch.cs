@@ -57,6 +57,31 @@ namespace ShorelandsBillboard.Core
             catch (Exception e) { return new Token { Kind = TokenKind.Error, Error = "bad token response: " + e.Message }; }
         }
 
+        // One request for many channels: which of them are live.
+        public static string LiveRequest(System.Collections.Generic.IEnumerable<string> channels)
+        {
+            return new JObject
+            {
+                ["query"] = "query($logins:[String!]){users(logins:$logins){login stream{id}}}",
+                ["variables"] = new JObject { ["logins"] = new JArray(channels) },
+            }.ToString(Newtonsoft.Json.Formatting.None);
+        }
+
+        // Channel -> live. A channel Twitch does not know is missing; null: no usable answer.
+        public static System.Collections.Generic.Dictionary<string, bool> ParseLive(string json)
+        {
+            try
+            {
+                if (!(JObject.Parse(json)["data"]?["users"] is JArray users)) return null;
+                var live = new System.Collections.Generic.Dictionary<string, bool>();
+                foreach (var u in users)
+                    if (u is JObject o && (string)o["login"] is string login)
+                        live[login.ToLowerInvariant()] = o["stream"] != null && o["stream"].Type != JTokenType.Null;
+                return live;
+            }
+            catch (Exception) { return null; }
+        }
+
         public static string UsherUrl(string channel, Token token, int p)
         {
             return "https://usher.ttvnw.net/api/v2/channel/hls/" + channel + ".m3u8"

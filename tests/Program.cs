@@ -24,7 +24,7 @@ static class Program
     {
         fixtures = (string)AppContext.GetData("ShorelandsBillboard.Tests.Fixtures");
         art = (string)AppContext.GetData("ShorelandsBillboard.Tests.Art");
-        TwitchTests(); MasterTests(); MediaTests(); ControllerTests(); LayoutTests(); SoundTests(); DatedSoundTests(); FfmpegTests();
+        TwitchTests(); ChannelTests(); RemoteLayoutTests(); MasterTests(); MediaTests(); ControllerTests(); LayoutTests(); SoundTests(); DatedSoundTests(); FfmpegTests();
         Console.WriteLine(failed == 0 ? "ALL PASS" : failed + " FAILED");
         return failed == 0 ? 0 : 1;
     }
@@ -50,6 +50,124 @@ static class Program
         Check(Twitch.UsherError(Fixture("usher-offline.json")) == "Can not find channel" && Twitch.UsherError("twirp error") == null, "recorded offline answer from usher: its error text");
         Check(Twitch.ValidChannel("dunkorslam") && Twitch.ValidChannel("a_b9") && !Twitch.ValidChannel("") && !Twitch.ValidChannel("a/b") && !Twitch.ValidChannel("x?y=1") && !Twitch.ValidChannel("Dunk"),
             "channel names that could alter the request are refused");
+    }
+
+    static void ChannelTests()
+    {
+        Check(Channels.Clean(" DunkOrSlam ") == "dunkorslam" && Channels.Clean("https://www.twitch.tv/LofiGirl?tt_content=x") == "lofigirl" && Channels.Clean("twitch.tv/a_b9/videos") == "a_b9" && Channels.Clean("@name") == "name",
+            "a typed name, an address or an @name becomes the lower-case channel name");
+        Check(Channels.Clean("") == null && Channels.Clean("two words") == null && Channels.Clean("a-b") == null && Channels.Clean(new string('a', 26)) == null && Channels.Clean("https://www.twitch.tv/") == null && Channels.Clean(null) == null,
+            "what is not a channel name is refused");
+        var parsed = Channels.Parse(" DunkOrSlam, lofigirl ;bad name,,LOFIGIRL, twitch.tv/monstercat ");
+        Check(parsed.SequenceEqual(new[] { "dunkorslam", "lofigirl", "monstercat" }), "list value: commas or semicolons, names cleaned, invalid entries and repeats dropped, order kept");
+        Check(Channels.Parse(Channels.Format(parsed)).SequenceEqual(parsed) && Channels.Format(parsed) == "dunkorslam, lofigirl, monstercat", "a list written to the file reads back the same");
+        Check(Channels.Parse(string.Join(",", Enumerable.Range(0, 30).Select(i => "ch" + i))).Count == Channels.Max && Channels.Parse(null).Count == 0, "no more than the maximum; no value is an empty list");
+
+        // settings files
+        string v100 = "## Settings file was created by plugin ShorelandsBillboard v1.0.0\n\n[Billboard]\n\n## Show the billboard in town.\nEnabled = true\n\n# Default value: dunkorslam\nChannel = lofigirl\n\n[Sound]\n\nVolume = 0.6\n";
+        string v110 = v100.Replace("Channel = lofigirl", "Channels = monstercat, lofigirl\r\n\r\nChannel = lofigirl");
+        Check(!Channels.HasListKey(v100) && Channels.HasListKey(v110) && !Channels.HasListKey(null) && !Channels.HasListKey("[Other]\nChannels = a\n[Billboard]\n# Channels = a\nChannel = b\n"),
+            "the list key is found in its section only, not in a comment, not in a 1.0.0 file");
+        var migrated = Channels.Startup(v100, Channels.Shipped, "lofigirl", out string start);
+        Check(migrated.SequenceEqual(new[] { "lofigirl", "dunkorslam" }) && start == "lofigirl", "a 1.0.0 file with another channel: that channel stays the default, the shipped one follows");
+        Check(Channels.Startup(v100.Replace("lofigirl", "dunkorslam"), Channels.Shipped, "dunkorslam", out start).SequenceEqual(new[] { "dunkorslam" }) && start == "dunkorslam", "a 1.0.0 file with the shipped channel: one entry");
+        Check(Channels.Startup(null, Channels.Shipped, Channels.Shipped, out start).SequenceEqual(new[] { "dunkorslam" }) && start == "dunkorslam", "no file yet: the shipped channel");
+        Check(Channels.Startup(v100, Channels.Shipped, "not a name", out start).SequenceEqual(new[] { "dunkorslam" }) && start == "dunkorslam", "a 1.0.0 file with a bad channel: the shipped one");
+        Check(Channels.Startup(v110, "monstercat, lofigirl", "lofigirl", out start).SequenceEqual(new[] { "monstercat", "lofigirl" }) && start == "monstercat", "with a list the game starts on its first entry, not on the channel left on last time");
+        Check(Channels.Startup(v110, " , ", "lofigirl", out start).SequenceEqual(new[] { "lofigirl" }) && start == "lofigirl"
+            && Channels.Startup(v110, "", "", out start).SequenceEqual(new[] { "dunkorslam" }), "an emptied list starts with the channel that was on, else the shipped one");
+
+        // the file was saved while the game runs
+        Check(Channels.Reconcile("a_1, b_2", "b_2").SequenceEqual(new[] { "a_1", "b_2" }), "reload: a channel of the list changes nothing in it");
+        Check(Channels.Reconcile("a_1, b_2", "c_3").SequenceEqual(new[] { "a_1", "b_2", "c_3" }), "reload: a channel set by hand that is not in the list joins at its end");
+        Check(Channels.Reconcile("", "c_3").SequenceEqual(new[] { "c_3" }) && Channels.Reconcile("", "?").SequenceEqual(new[] { "dunkorslam" }) && Channels.Reconcile("a_1", "bad name").SequenceEqual(new[] { "a_1" }),
+            "reload: never an empty list; a bad channel is not added");
+        var full = Enumerable.Range(0, Channels.Max).Select(i => "ch" + i).ToList();
+        Check(Channels.Reconcile(Channels.Format(full), "extra").SequenceEqual(full), "reload: a full list stays as it is");
+
+        // the remote's buttons
+        var list = new List<string> { "a_1", "b_2" };
+        Check(Channels.Add(list, " Twitch.tv/C_3 ", out string added) == AddResult.Added && added == "c_3" && list.SequenceEqual(new[] { "a_1", "b_2", "c_3" }), "add: cleaned and appended");
+        Check(Channels.Add(list, "B_2", out _) == AddResult.Duplicate && Channels.Add(list, "b 2", out _) == AddResult.Invalid && Channels.Add(list, "", out _) == AddResult.Invalid && list.Count == 3, "add: a repeat and a bad name leave the list alone");
+        var crowded = new List<string>(full);
+        Check(Channels.Add(crowded, "extra", out _) == AddResult.Full && crowded.Count == Channels.Max && Channels.Add(crowded, "ch3", out _) == AddResult.Duplicate, "add: a full list takes no more");
+        Check(Channels.Step(list, "a_1", 1) == "b_2" && Channels.Step(list, "c_3", 1) == "a_1" && Channels.Step(list, "a_1", -1) == "c_3" && Channels.Step(list, "b_2", -1) == "a_1", "next and previous go around the ends");
+        Check(Channels.Step(list, "gone", 1) == "a_1" && Channels.Step(list, "gone", -1) == "c_3" && Channels.Step(new List<string> { "a_1" }, "a_1", 1) == "a_1", "from a channel outside the list: the first or the last; one entry stays");
+        Check(Channels.MoveToTop(list, "c_3") && list.SequenceEqual(new[] { "c_3", "a_1", "b_2" }) && !Channels.MoveToTop(list, "c_3") && !Channels.MoveToTop(list, "gone"), "make default: to the top, the others keep their order");
+        string on = "a_1";
+        Check(Channels.Remove(list, "a_1", ref on) && on == "b_2" && list.SequenceEqual(new[] { "c_3", "b_2" }), "removing the channel that is on moves on to the one after it");
+        Check(Channels.Remove(list, "b_2", ref on) && on == "c_3" && list.SequenceEqual(new[] { "c_3" }), "removing the last entry while it is on moves to the new last one");
+        Check(!Channels.Remove(list, "c_3", ref on) && list.Count == 1 && on == "c_3" && !Channels.Remove(list, "gone", ref on), "the only entry cannot be removed");
+        list.Add("d_4"); on = "c_3";
+        Check(Channels.Remove(list, "d_4", ref on) && on == "c_3", "removing another channel leaves the one that is on");
+        float v = 0.6f; for (int i = 0; i < 4; i++) v = Channels.StepVolume(v, 1);
+        float w = 0.6f; for (int i = 0; i < 12; i++) w = Channels.StepVolume(w, 1);
+        Check(v == 1f && w == 1f && Channels.StepVolume(0.05f, -1) == 0f && Channels.StepVolume(0.33f, 1) == 0.4f && Channels.StepVolume(0.3f, -1) == 0.2f, "volume steps: tenths, 0 to 1, from any value");
+
+        var tuner = new Tuner();
+        tuner.Request("b_2", 10); tuner.Request("c_3", 10.2); tuner.Request("d_4", 10.3);
+        Check(tuner.Due(10.5, "a_1") == null && tuner.Pending == "d_4" && tuner.Due(10.3 + Tuner.Delay, "a_1") == "d_4" && tuner.Pending == null && tuner.Due(20, "a_1") == null,
+            "buttons pressed in a row: one switch, to the last choice, once the presses stopped");
+        tuner.Request("b_2", 30); tuner.Request("a_1", 30.1);
+        Check(tuner.Due(31, "a_1") == null && tuner.Pending == null, "back on the channel that is on: no switch");
+        tuner.Request("b_2", 40); tuner.Cancel();
+        Check(tuner.Due(41, "a_1") == null, "a cancelled choice does not switch");
+
+        var live = Twitch.ParseLive(Fixture("live-users.json"));
+        Check(live != null && live.Count == 4 && live["lofigirl"] && !live["dunkorslam"] && !live.ContainsKey("nosuchchannel"), "recorded answer: who is live; a channel Twitch does not know is left out");
+        Check(Twitch.ParseLive("<html>") == null && Twitch.ParseLive("{\"errors\":[{\"message\":\"x\"}]}") == null && Twitch.ParseLive("{\"data\":{\"users\":[]}}").Count == 0, "no usable answer is not an answer");
+        var ask = JObject.Parse(Twitch.LiveRequest(new[] { "a_1", "b_2" }));
+        Check(((JArray)ask["variables"]["logins"]).Select(x => (string)x).SequenceEqual(new[] { "a_1", "b_2" }) && ((string)ask["query"]).Contains("users(logins:$logins)"), "one request names every channel of the list");
+    }
+
+    static void RemoteLayoutTests()
+    {
+        var body = Png.Read(Path.Combine(art, "remote.png")); var icons = Png.Read(Path.Combine(art, "remote_icons.png")); var hud = Png.Read(Path.Combine(art, "remote_hud.png"));
+        Check(body.W == RemoteLayout.W && body.H == RemoteLayout.H && icons.W == RemoteLayout.IconCount * RemoteLayout.Icon && icons.H == RemoteLayout.Icon && hud.W == RemoteLayout.HudW && hud.H == RemoteLayout.HudH
+            && Enum.GetValues(typeof(RemoteLayout.Icons)).Length == RemoteLayout.IconCount, "remote.png, remote_icons.png and remote_hud.png have the layout's sizes");
+        bool Flat(RemoteLayout.Box b, out int colour)
+        {
+            colour = body.Rgb(b.X, b.Y); bool flat = true;
+            for (int y = b.Y; y < b.Bottom; y++) for (int x = b.X; x < b.Right; x++) flat &= body.A(x, y) == 255 && body.Rgb(x, y) == colour;
+            return flat;
+        }
+        bool Outlined(RemoteLayout.Box b)
+        {
+            bool line = true;
+            for (int x = b.X; x < b.Right; x++) line &= body.Rgb(x, b.Y) == 0 && body.Rgb(x, b.Bottom - 1) == 0;
+            for (int y = b.Y; y < b.Bottom; y++) line &= body.Rgb(b.X, y) == 0 && body.Rgb(b.Right - 1, y) == 0;
+            return line;
+        }
+        Check(Flat(RemoteLayout.LcdGlass, out int glass) && Outlined(RemoteLayout.Lcd) && Flat(RemoteLayout.LcdLine(0), out _) && RemoteLayout.LcdLine(1).Bottom <= RemoteLayout.LcdGlass.Bottom,
+            "display: an outlined box, one flat colour inside, two text lines fit");
+        Check(Flat(RemoteLayout.List.Inset(1), out int well) && Outlined(RemoteLayout.List) && Flat(RemoteLayout.Field.Inset(1), out int fieldWell) && Outlined(RemoteLayout.Field) && well == fieldWell && well != glass,
+            "list and name field: outlined wells of one colour");
+        var keys = new[] { RemoteLayout.Power, RemoteLayout.Close, RemoteLayout.VolUp, RemoteLayout.VolDown, RemoteLayout.ChUp, RemoteLayout.ChDown, RemoteLayout.Mute, RemoteLayout.Add };
+        int plastic = 0;
+        Check(keys.All(k => Flat(k, out plastic)) && Flat(new RemoteLayout.Box(RemoteLayout.VolUp.X, RemoteLayout.CaptionY, RemoteLayout.RockerW, RemoteLayout.TextH), out _) && plastic != well,
+            "every button and the captions lie on the body's flat colour");
+        var parts = keys.Concat(new[] { RemoteLayout.Lcd, RemoteLayout.List, RemoteLayout.Field }).ToArray();
+        bool apart = true;
+        for (int i = 0; i < parts.Length; i++)
+        {
+            apart &= parts[i].X >= RemoteLayout.Left && parts[i].Right <= RemoteLayout.Right && parts[i].Y > 0 && parts[i].Bottom < RemoteLayout.H;
+            for (int j = i + 1; j < parts.Length; j++) apart &= !parts[i].Overlaps(parts[j]);
+        }
+        Check(apart, "no two parts overlap; all lie inside the body's margins");
+        Check(new[] { RemoteLayout.Power, RemoteLayout.VolUp, RemoteLayout.Mute, RemoteLayout.Add, RemoteLayout.RowRemove(RemoteLayout.RowW), RemoteLayout.RowTop(RemoteLayout.RowW) }.All(k => (k.W - RemoteLayout.Icon) % 2 == 0 && (k.H - RemoteLayout.Icon) % 2 == 0),
+            "an 8 px picture centres on whole pixels on every button size");
+        Check(RemoteLayout.ListView.H == RemoteLayout.ContentHeight(RemoteLayout.Rows) && RemoteLayout.ListView.X + RemoteLayout.RowW < RemoteLayout.Scroll.X && RemoteLayout.Scroll.Right < RemoteLayout.List.Right
+            && RemoteLayout.RowTop(RemoteLayout.RowW).X > RemoteLayout.NameX + 40 && RemoteLayout.RowRemove(RemoteLayout.RowW).Right < RemoteLayout.RowW, "the list shows whole rows; the scroll mark and a row's buttons have their place");
+        Check(RemoteLayout.RowWidth(RemoteLayout.Rows) == RemoteLayout.ListView.W && RemoteLayout.RowWidth(RemoteLayout.Rows + 1) == RemoteLayout.RowW && RemoteLayout.NameY + RemoteLayout.TextH <= RemoteLayout.RowH,
+            "rows fill the well while the list fits and make room for the scroll mark when it does not");
+
+        // scrolling, in pixels
+        int step = RemoteLayout.RowH + RemoteLayout.RowGap, n = 9;
+        Check(RemoteLayout.ClampScroll(-5, n) == 0 && RemoteLayout.ClampScroll(999, n) == (n - RemoteLayout.Rows) * step && RemoteLayout.ClampScroll(50, 3) == 0, "scroll stays between the first and the last row; a short list does not scroll");
+        Check(RemoteLayout.ScrollTo(0, 2, n) == 0 && RemoteLayout.ScrollTo(0, 4, n) == step && RemoteLayout.ScrollTo(0, 8, n) == 5 * step && RemoteLayout.ScrollTo(5 * step, 1, n) == step && RemoteLayout.ScrollTo(3 * step, 4, n) == 3 * step,
+            "a chosen row is scrolled into view by as little as it takes");
+        RemoteLayout.ScrollMark(0, 3, out int y0, out int h0); RemoteLayout.ScrollMark(0, n, out int y1, out int h1); RemoteLayout.ScrollMark((n - RemoteLayout.Rows) * step, n, out int y2, out int h2);
+        Check(h0 == 0 && h1 > 0 && y1 == 0 && h2 == h1 && y2 + h2 == RemoteLayout.Scroll.H, "scroll mark: none for a list that fits, else from the top to the very bottom");
     }
 
     static void MasterTests()

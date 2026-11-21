@@ -30,7 +30,7 @@ Nothing else. The video decoder (libVLC) comes with the mod.
 3. If you do not have BepInEx yet: unzip `BepInEx_win_x64_5.4.23.6.zip` into that folder, so that
    `winhttp.dll` and the `BepInEx` folder lie next to `Shorelands.exe`. Start the game once and close it
    again; BepInEx then creates its folders.
-4. Download `ShorelandsBillboard-1.0.0.zip` from the
+4. Download `ShorelandsBillboard-1.1.0.zip` from the
    [releases page](https://github.com/zerfl/ShorelandsBillboard/releases) and unzip it into the same folder. You should now have
    `BepInEx\plugins\ShorelandsBillboard\ShorelandsBillboard.dll`.
 5. Start the game and log in.
@@ -47,6 +47,34 @@ for the best view.
 - You cannot walk through the billboard's base; walk around its right end to get behind it.
 - The game's master volume also turns the billboard's sound up and down.
 
+## The remote
+
+![The remote next to the billboard; its button is the one left of the menu button, top right](docs/remote.png)
+
+The button with the little television, left of the game's menu button in the top right corner, opens the
+remote. The same button, `Esc` or the remote's own close button closes it. You can drag it to another place
+on the screen, and it works wherever you are in the world: away from the billboard its display says
+`STANDBY`, and what you chose is on when you come back.
+
+| On the remote | What it does |
+| --- | --- |
+| Power (red, top left) | Switches the billboard off and on (`[Billboard] Enabled`). |
+| Display | The channel and what it is doing: `LIVE`, `OFFLINE`, `AD BREAK`, `STANDBY`, `OFF` and the other texts of the billboard's screen (see "Troubleshooting"). On the right its place in the list, and `MUTE` while muted. |
+| `VOL` + and - | Volume up and down by a tenth (`[Sound] Volume`). |
+| Speaker (middle) | Mute on and off (`[Sound] Mute`). |
+| `CH` up and down | The previous and the next channel of the list. After the last one comes the first again. |
+| A row of the list | Switches to that channel. The one that is on is written in yellow; a red dot marks the channels that are live right now. The mouse wheel scrolls a long list. |
+| The two small buttons on the row under the pointer | The arrow makes that channel the default: it moves to the top of the list. The cross removes it from the list (the last channel cannot be removed). |
+| `add channel` and + | Type a channel's name, or paste its address, and press Enter or +. The list holds up to 20 channels. |
+
+The first channel of the list is the default: the one the billboard shows when you start the game.
+Switching channels with the remote is for now only, so an evening on another channel does not change what
+you see the next day; to change that, make another channel the default.
+
+While you type a name, the keys go to the name field and not to the game. Everything the remote changes is
+written to the settings file at once, and what you change in the file shows on the remote within a few
+seconds.
+
 ## Settings
 
 Start the game once with the mod; it then writes `BepInEx\config\com.zerfl.shorelands.billboard.cfg`. Open
@@ -56,7 +84,8 @@ within a few seconds of saving it.
 | Setting | Default | What it does |
 | --- | --- | --- |
 | `[Billboard] Enabled` | `true` | `false` removes the billboard. |
-| `[Billboard] Channel` | `dunkorslam` | The Twitch channel to show (see below). |
+| `[Billboard] Channels` | `dunkorslam` | The remote's channel list, separated by commas (see below). The billboard starts on the first one. |
+| `[Billboard] Channel` | `dunkorslam` | The channel that is on now. The remote changes it. At every game start it is set to the first entry of `Channels`. |
 | `[Billboard] Quality` | `auto` | `auto` picks just enough for the billboard's size on your screen (360p on a 1080p screen). Or `160`, `360`, `480`, `720`: at least that picture height. Higher costs more bandwidth and processor time and rarely looks better at this size. |
 | `[Billboard] SharpPicture` | `true` | `true`: the picture is drawn at your screen's resolution, so text in the stream can be read. `false`: it is drawn in the game's pixel-art resolution (184x104 pixels). |
 | `[Sound] Volume` | `0.6` | Volume next to the billboard, from `0` to `1`. |
@@ -65,12 +94,24 @@ within a few seconds of saving it.
 | `[Position] OffsetX`, `OffsetY` | `0` | Move the billboard east and north (negative: west and south), from `-40` to `40`. Only hedge bushes are cleared from under it, so pick a free spot. |
 | `[Decoder] Backend` | `auto` | What decodes the video. `auto`: the libVLC that comes with the mod, or ffmpeg if libVLC cannot be used. `vlc`: only libVLC. `ffmpeg`: only an ffmpeg on your PC. |
 | `[Decoder] FfmpegPath` | empty | Full path of the `ffmpeg.exe` to use. Empty: the one found in `PATH`, in winget's install folders or in the mod's folder. |
+| `[Remote] Enabled` | `true` | `false`: no button next to the menu button and no remote. |
+| `[Remote] Key` | empty | A key that opens and closes the remote, for example `F8` or `R`. Empty: no key. |
 
 ### Showing another channel
 
-Set `Channel` to the name from the channel's address: for `https://www.twitch.tv/somechannel` write
-`Channel = somechannel`. The name plate under the screen changes with it. A name with anything other than
-letters, digits and underscores is refused (`BAD CHANNEL`).
+The easy way is the remote (see "The remote"). In the file:
+
+- `Channels` is the list: the names from the channels' addresses, separated by commas. For
+  `https://www.twitch.tv/somechannel` the name is `somechannel`. Example:
+  `Channels = dunkorslam, somechannel, anotherchannel`. The first one is the default. Entries that are not
+  channel names (anything other than letters, digits and underscores) and repeats are ignored.
+- `Channel` switches the billboard right away, as the remote does: `Channel = somechannel`. The name plate
+  under the screen changes with it. A channel set here that is not in the list is added to its end. A name
+  that is not a channel name is refused (`BAD CHANNEL`). Because the game starts on the first entry of
+  `Channels`, a channel you want to keep belongs there.
+
+If you used version 1.0.0: the channel you had set is now the first entry of `Channels`, so the billboard
+shows what it showed before.
 
 ## Troubleshooting
 
@@ -84,13 +125,17 @@ What the screen says:
 | `AD BREAK` | Twitch is running ads on the channel. The mod does not show them. | Wait until the break is over. |
 | `NO SIGNAL` | Twitch could not be reached, or the stream could not be played. | Check your internet connection and whether a firewall blocks `Shorelands.exe`. The mod tries again by itself, at first after 5 seconds, then at longer intervals up to a minute. |
 | `STANDBY` | You are too far away; the stream is paused. | Walk to the billboard. |
-| `BAD CHANNEL` | `Channel` is not a Twitch channel name. | Fix it in the settings file. |
+| `BAD CHANNEL` | `Channel` is not a Twitch channel name. | Pick a channel on the remote, or fix it in the settings file. |
 | `NO DECODER` | The mod's `libvlc` folder or `LibVLCSharp.dll` is missing and there is no ffmpeg on the PC either. | Unzip the mod again so that all of its files are there. |
 | `NO VLC` | `Backend = vlc`, but the mod's `libvlc` folder or `LibVLCSharp.dll` is missing. | Unzip the mod again, or set `Backend = auto`. |
 | `NO FFMPEG` | `Backend = ffmpeg`, but no `ffmpeg.exe` was found. | Install ffmpeg (`winget install Gyan.FFmpeg`), set `FfmpegPath`, or set `Backend = auto`. |
 
 Other things:
 
+- **There is no button for the remote.** `[Remote] Enabled` may be `false`. Otherwise look into
+  `BepInEx\LogOutput.log` for `no remote` or `the remote is switched off`: a game update changed the part of
+  the screen the button belongs to, and a newer version of the mod is needed. The billboard itself keeps
+  working.
 - **There is no billboard at all.** Look into `BepInEx\LogOutput.log` in the game folder for lines with
   `ShorelandsBillboard`.
   - No such line: the mod was not loaded. Check that BepInEx is installed (the log file exists and starts with
@@ -124,6 +169,10 @@ identification). It sends no Twitch account, no login, no cookies, no device or 
 nothing about your game or your PC. Twitch sees an anonymous viewer of the channel. The mod contacts no other
 server, and nothing goes to the Shorelands game server.
 
+While the remote is open, the mod also asks `gql.twitch.tv` which channels of your list are live, to mark
+them with a red dot: one request that carries the list's channel names, when the remote opens and then at
+most once a minute. With the remote closed, or with `[Remote] Enabled = false`, this request is not made.
+
 Twitch's advertising inserted into a stream is not played; the screen shows `AD BREAK` for its duration.
 
 The stream is paused, and nothing is downloaded, while you are away from the billboard, while you are in the
@@ -137,6 +186,7 @@ main menu, and when `Enabled = false`.
   lower edge when you stand right at the base.
 - The sharp picture needs a 16:9 window; other shapes get the pixel-art picture (see "Troubleshooting").
 - The stream runs some seconds behind the live broadcast; Twitch's low-latency mode is not used.
+- The remote is used with the mouse; there is no gamepad control for it.
 - Windows only.
 
 ## Licences
@@ -192,5 +242,5 @@ This downloads the pinned libVLC and LibVLCSharp packages from nuget.org (checks
 builds the plugin, checks what goes into the package and writes `dist\ShorelandsBillboard-<version>.zip`,
 ready to be unzipped into the game folder.
 
-The billboard's pictures in `art\` are drawn by `art\make_billboard.py` (Python with Pillow); run it after
-changing it. Changes between versions: [CHANGELOG.md](CHANGELOG.md).
+The pictures in `art\` are drawn by `art\make_billboard.py` (the billboard) and `art\make_remote.py` (the
+remote), Python with Pillow; run them after changing them. Changes between versions: [CHANGELOG.md](CHANGELOG.md).
