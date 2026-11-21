@@ -8,7 +8,7 @@ using ShorelandsBillboard.Core;
 
 namespace ShorelandsBillboard
 {
-    // libVLC inside the game process: the transport stream goes in through a media callback, pictures come
+    // libVLC inside the game process: the stream goes in through a media callback, pictures come
     // back through the video memory callbacks at the moment libVLC would show them, sound through the audio
     // callback ahead of the date it is to be heard. Nothing here may be touched unless LibVLCSharp.dll is
     // installed (Backend.VlcInstalled).
@@ -31,7 +31,7 @@ namespace ShorelandsBillboard
         readonly MediaPlayer.LibVLCAudioPlayCb playCb; readonly MediaPlayer.LibVLCAudioFlushCb flushCb;
         Media media; MediaPlayer player;
         Frame inFlight; short[] pcm = new short[4096]; float[] samples = new float[4096];
-        int closing; long dropped, lastEarly, lastShown; ulong lastSum;
+        int closing; long dropped, lastEarly, lastShown; ulong lastSum; bool begun;
 
         public VlcDecoder(string dir, int width, int height, int sampleRate) : base(width, height, sampleRate)
         {
@@ -70,7 +70,7 @@ namespace ShorelandsBillboard
                         vlc = v;
                     }
                 }
-                media = new Media(vlc, feed, ":demux=ts", ":avcodec-hw=" + Hardware);
+                media = new Media(vlc, feed, Container == Container.Fmp4 ? ":demux=mp4" : ":demux=ts", ":avcodec-hw=" + Hardware);
                 player = new MediaPlayer(media);
                 player.SetVideoFormat("RGBA", (uint)Width, (uint)Height, (uint)Width * 4);
                 player.SetVideoCallbacks(lockCb, null, displayCb);
@@ -82,7 +82,19 @@ namespace ShorelandsBillboard
             }
         }
 
-        public override void Write(byte[] buf, int n) => feed.Write(buf, n);
+        public override void Write(byte[] buf, int n)
+        {
+            // libVLC's MP4 demuxer reads an input that can seek to its end, looking for fragments, when the
+            // movie's duration is 0, as a live stream's init section has it. With any other it starts at the
+            // first fragment. The feed says it can seek (see below), so the duration goes in as "not known".
+            if (Container == Container.Fmp4 && !begun)
+            {
+                begun = true;
+                var init = Mp4.WithUnknownDuration(buf, n);
+                if (init != null) buf = init;
+            }
+            feed.Write(buf, n);
+        }
 
         // libVLC's stop waits for its threads, which may be inside one of the callbacks here; it runs on a
         // thread of its own, never on a libVLC thread, and the callbacks never wait once `stop` is set.

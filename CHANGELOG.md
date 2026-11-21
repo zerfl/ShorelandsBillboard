@@ -39,6 +39,11 @@ now, so you can stay on the bench.
 - **Long names no longer spill over.** A channel with a very long name wrapped onto a second line under the
   screen's status text (`OFFLINE` and friends). The `twitch.tv/` in front is now left out when the line
   does not fit, and the name is cut if it still does not.
+- **Channels that never got past `NO SIGNAL`.** Those streamers were not ignoring you; their stream just
+  arrives in different wrapping paper. Twitch sends some channels as fragmented MP4 instead of the usual
+  MPEG transport stream, and the billboard handed those to its decoder as the wrong kind: `CONNECTING`,
+  then `NO SIGNAL`, round and round. It now reads which of the two a channel uses and plays both, with
+  libVLC and with ffmpeg. The package carries one more libVLC module for it (`libmp4_plugin.dll`, LGPL).
 
 ## [1.0.0] - 2026-11-21
 

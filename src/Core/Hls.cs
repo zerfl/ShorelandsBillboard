@@ -9,9 +9,20 @@ namespace ShorelandsBillboard.Core
         public string Name, Url; public int Width, Height, Bandwidth; public double Fps; public bool Source;
     }
 
+    public enum Container { Ts, Fmp4 }
+
+    // What a fragmented MP4 segment cannot be read without (EXT-X-MAP). Length < 0: the whole resource.
+    public sealed class InitSection
+    {
+        public string Url; public long Offset, Length = -1;
+        public bool Same(InitSection o) => o != null && o.Url == Url && o.Offset == Offset && o.Length == Length;
+    }
+
     public sealed class Segment
     {
-        public long Seq; public string Url; public double Duration; public bool Ad;
+        public long Seq; public string Url; public double Duration; public bool Ad, Discontinuity;
+        public InitSection Map;   // the last one above the segment; none: MPEG-TS
+        public Container Container => Map != null ? Container.Fmp4 : Container.Ts;
     }
 
     public sealed class MediaPlaylist
@@ -97,6 +108,7 @@ namespace ShorelandsBillboard.Core
             var pl = new MediaPlaylist();
             var ads = new List<(DateTime start, DateTime end)>();
             long seq = 0; double duration = 0; string title = null; DateTime? date = null;
+            InitSection map = null; bool discontinuity = false;
             foreach (var raw in Lines(text))
             {
                 var line = raw.Trim();
@@ -104,6 +116,23 @@ namespace ShorelandsBillboard.Core
                 else if (line.StartsWith("#EXT-X-TARGETDURATION:")) double.TryParse(line.Substring(22), NumberStyles.Float, CultureInfo.InvariantCulture, out pl.TargetDuration);
                 else if (line.StartsWith("#EXT-X-ENDLIST")) pl.Ended = true;
                 else if (line.StartsWith("#EXT-X-PROGRAM-DATE-TIME:")) date = ParseDate(line.Substring(25));
+                else if (line.StartsWith("#EXT-X-DISCONTINUITY") && !line.StartsWith("#EXT-X-DISCONTINUITY-SEQUENCE")) discontinuity = true;
+                else if (line.StartsWith("#EXT-X-MAP:"))
+                {
+                    var a = Attributes(line.Substring(11));
+                    if (!a.TryGetValue("URI", out var uri) || uri.Length == 0) continue;
+                    map = new InitSection { Url = uri };
+                    // BYTERANGE="<length>[@<offset>]"
+                    if (a.TryGetValue("BYTERANGE", out var range))
+                    {
+                        var p = range.Split('@');
+                        if (long.TryParse(p[0], out long length) && length > 0)
+                        {
+                            map.Length = length;
+                            if (p.Length > 1) long.TryParse(p[1], out map.Offset);
+                        }
+                    }
+                }
                 else if (line.StartsWith("#EXT-X-DATERANGE:"))
                 {
                     var a = Attributes(line.Substring(17));
@@ -125,9 +154,9 @@ namespace ShorelandsBillboard.Core
                 {
                     bool ad = title != null && title.Contains("Amazon");
                     if (!ad && date is DateTime d) foreach (var r in ads) if (d >= r.start && d < r.end) { ad = true; break; }
-                    pl.Segments.Add(new Segment { Seq = seq++, Url = line, Duration = duration, Ad = ad });
+                    pl.Segments.Add(new Segment { Seq = seq++, Url = line, Duration = duration, Ad = ad, Map = map, Discontinuity = discontinuity });
                     if (date is DateTime dd) date = dd.AddSeconds(duration);
-                    title = null;
+                    title = null; discontinuity = false;
                 }
             }
             return pl;

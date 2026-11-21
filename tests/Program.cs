@@ -24,7 +24,7 @@ static class Program
     {
         fixtures = (string)AppContext.GetData("ShorelandsBillboard.Tests.Fixtures");
         art = (string)AppContext.GetData("ShorelandsBillboard.Tests.Art");
-        TwitchTests(); ChannelTests(); RemoteLayoutTests(); MasterTests(); MediaTests(); ControllerTests(); LayoutTests(); SoundTests(); DatedSoundTests(); FfmpegTests();
+        TwitchTests(); ChannelTests(); RemoteLayoutTests(); MasterTests(); MediaTests(); Fmp4Tests(); ControllerTests(); LayoutTests(); SoundTests(); DatedSoundTests(); FfmpegTests();
         Console.WriteLine(failed == 0 ? "ALL PASS" : failed + " FAILED");
         return failed == 0 ? 0 : 1;
     }
@@ -214,6 +214,66 @@ static class Program
         t3.Next(titled);
         Check(t3.InAd && t3.Next(Hls.ParseMedia(a.Replace("#EXT-X-MEDIA-SEQUENCE:4154", "#EXT-X-MEDIA-SEQUENCE:4168"))).Count == 14 && !t3.InAd, "after the break every missed live segment plays");
         Check(Hls.ParseMedia(a + "#EXT-X-ENDLIST\n").Ended, "ENDLIST ends the stream");
+    }
+
+    static void Fmp4Tests()
+    {
+        string text = Fixture("media-fmp4.m3u8");
+        var pl = Hls.ParseMedia(text);
+        var live = pl.Segments[0].Map;
+        Check(pl.Segments.Count == 6 && pl.Segments[0].Seq == 36574 && pl.Segments.All(s => s.Container == Container.Fmp4 && s.Map == live && !s.Discontinuity)
+            && live.Url.StartsWith("https://") && live.Url != pl.Segments[0].Url && live.Length < 0, "recorded playlist with EXT-X-MAP (its first six segments): fragmented MP4, one init section for all");
+        Check(Hls.ParseMedia(Fixture("media-live.m3u8")).Segments.All(s => s.Container == Container.Ts && s.Map == null), "recorded playlist without a map: MPEG-TS");
+
+        // an ad break that brings its own init section, then the broadcast again: the map above a segment counts
+        var dates = text.Split('\n').Where(l => l.StartsWith("#EXT-X-PROGRAM-DATE-TIME:")).Select(l => l.Substring(25).Trim()).ToList();
+        DateTime end = DateTime.Parse(dates[dates.Count - 1], null, System.Globalization.DateTimeStyles.AdjustToUniversal).AddSeconds(2);
+        string Date(double s) => "#EXT-X-PROGRAM-DATE-TIME:" + end.AddSeconds(s).ToString("yyyy-MM-ddTHH:mm:ss.fffZ") + "\n";
+        string liveMap = text.Split('\n').First(l => l.StartsWith("#EXT-X-MAP:")) + "\n";
+        string more = $"#EXT-X-DATERANGE:ID=\"stitched-ad-1\",CLASS=\"twitch-stitched-ad\",START-DATE=\"{end:yyyy-MM-ddTHH:mm:ss.fffZ}\",DURATION=4.000\n"
+            + "#EXT-X-DISCONTINUITY\n#EXT-X-MAP:URI=\"https://ads.example/init\",BYTERANGE=\"720@64\"\n"
+            + Date(0) + "#EXTINF:2.000,live\nhttps://ads.example/1\n" + Date(2) + "#EXTINF:2.000,live\nhttps://ads.example/2\n"
+            + "#EXT-X-DISCONTINUITY\n" + liveMap
+            + Date(4) + "#EXTINF:2.000,live\nhttps://live.example/7\n" + Date(6) + "#EXTINF:2.000,live\nhttps://live.example/8\n";
+        var seg = Hls.ParseMedia(text + more).Segments;
+        Check(seg.Count == 10 && seg[5].Map.Same(live) && !seg[5].Ad && seg[6].Ad && seg[7].Ad && !seg[8].Ad && !seg[9].Ad, "the appended break: two ad segments between live ones");
+        Check(seg[6].Map.Url == "https://ads.example/init" && seg[6].Map.Offset == 64 && seg[6].Map.Length == 720 && seg[7].Map == seg[6].Map && !seg[6].Map.Same(live),
+            "ad segments carry the ad's init section and its byte range");
+        Check(seg[8].Map.Same(live) && seg[9].Map.Same(live) && seg[8].Map != seg[6].Map, "after the break the broadcast's init section is in effect again");
+        Check(seg[6].Discontinuity && !seg[7].Discontinuity && seg[8].Discontinuity && !seg[9].Discontinuity, "a discontinuity marks the first segment after it only");
+        var t = new SegmentTracker(3);
+        t.Next(Hls.ParseMedia(text));
+        var played = t.Next(Hls.ParseMedia(text + more));
+        Check(played.Select(s => s.Seq).SequenceEqual(new long[] { 36582, 36583 }) && played.All(s => s.Map.Same(live)) && played[0].Discontinuity && !t.InAd,
+            "the tracker plays the live segments after the break, with the broadcast's init section, and none of the ad's");
+
+        var changed = Hls.ParseMedia(text + "#EXT-X-MAP:URI=\"https://live.example/init2\"\n#EXTINF:2.000,live\nhttps://live.example/7\n").Segments;
+        Check(changed[5].Map.Same(live) && !changed[6].Map.Same(live) && changed[6].Map.Url == "https://live.example/init2" && changed[6].Map.Length < 0, "a new map mid-playlist applies from the segment below it");
+        var ranged = Hls.ParseMedia("#EXTM3U\n#EXT-X-MAP:BYTERANGE=\"720\",URI=\"a,b.mp4\"\n#EXTINF:2,\nhttps://x/1\n#EXT-X-MAP:URI=\"c.mp4\",BYTERANGE=\"x@y\"\n#EXTINF:2,\nhttps://x/2\n").Segments;
+        Check(ranged[0].Map.Url == "a,b.mp4" && ranged[0].Map.Offset == 0 && ranged[0].Map.Length == 720 && ranged[1].Map.Url == "c.mp4" && ranged[1].Map.Length < 0,
+            "byte range without an offset starts at 0; an unreadable one is the whole file");
+        Check(new InitSection { Url = "a", Offset = 0, Length = 720 }.Same(new InitSection { Url = "a", Offset = 0, Length = 720 }) && !new InitSection { Url = "a", Length = 720 }.Same(new InitSection { Url = "a" })
+            && !new InitSection { Url = "a" }.Same(null), "init sections are the same by address and range");
+
+        // the init section as libVLC needs it
+        var init = File.ReadAllBytes(Path.Combine(fixtures, "init-fmp4.mp4"));
+        int mvhd = System.Text.Encoding.ASCII.GetString(init).IndexOf("mvhd"), duration = mvhd + 4 + 16;
+        var open = Mp4.WithUnknownDuration(init, init.Length);
+        Check(mvhd > 0 && init.Skip(duration).Take(4).All(b => b == 0) && open != null && open != init && open.Length == init.Length && open.Skip(duration).Take(4).All(b => b == 0xFF)
+            && Enumerable.Range(0, init.Length).All(i => i >= duration && i < duration + 4 || open[i] == init[i]), "recorded init section: the movie duration 0 becomes all ones, nothing else changes");
+        byte[] Box(string type, params byte[][] parts)
+        {
+            var body = parts.SelectMany(x => x).ToArray(); int n = body.Length + 8;
+            return new[] { (byte)(n >> 24), (byte)(n >> 16), (byte)(n >> 8), (byte)n }.Concat(System.Text.Encoding.ASCII.GetBytes(type)).Concat(body).ToArray();
+        }
+        var wide = Box("ftyp", new byte[8]).Concat(Box("moov", Box("free", new byte[5]), Box("mvhd", new byte[] { 1, 0, 0, 0 }, new byte[16], new byte[] { 0, 1, 0x86, 0xA0 }, new byte[8], new byte[80])))
+            .Concat(Box("moof", Box("mvhd", new byte[40]))).ToArray();
+        var wideOpen = Mp4.WithUnknownDuration(wide, wide.Length);
+        int at = 16 + 8 + 13 + 8 + 24;
+        Check(wideOpen != null && Enumerable.Range(0, wide.Length).All(i => wideOpen[i] == (i >= at && i < at + 8 ? 0xFF : wide[i])), "a version 1 movie header behind other boxes: its 64-bit duration, and no header outside moov");
+        var segment = Box("moof", Box("mfhd", new byte[8])).Concat(Box("mdat", new byte[32])).ToArray();
+        Check(Mp4.WithUnknownDuration(segment, segment.Length) == null && Mp4.WithUnknownDuration(new byte[] { 0x47, 0x40, 0x11, 0x10, 0, 0, 0, 0, 0, 0 }, 10) == null
+            && Mp4.WithUnknownDuration(wide, 40) == null && Mp4.WithUnknownDuration(new byte[0], 0) == null, "no movie header, a transport stream, a cut-off section: nothing to change");
     }
 
     static void ControllerTests()

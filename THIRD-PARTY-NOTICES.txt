@@ -15,7 +15,7 @@ addresses given under "Source" for each library.
 1. libVLC 3.0.24 "Vetinari" (build 3.0.24-rc1-0-g6de05adcba), Windows x64
 ---------------------------------------------------------------------------
 
-Files:      libvlc\libvlc.dll, libvlc\libvlccore.dll and the 18 modules under libvlc\plugins\
+Files:      libvlc\libvlc.dll, libvlc\libvlccore.dll and the 19 modules under libvlc\plugins\
 Copyright:  the VideoLAN team and VLC contributors
 Licence:    GNU Lesser General Public License, version 2.1 or later (licenses\LGPL-2.1.txt)
 Taken from: NuGet package VideoLAN.LibVLC.Windows 3.0.24 (build\x64\)
@@ -25,8 +25,9 @@ Source:     https://download.videolan.org/pub/videolan/vlc/3.0.24/vlc-3.0.24.tar
             https://code.videolan.org/videolan/vlc (tag 3.0.24)
             How VideoLAN packages it: https://code.videolan.org/videolan/libvlc-nuget
 
-Only a part of that package is included: the modules needed to read an MPEG transport stream from memory,
-decode H.264 video and AAC sound, and hand pictures and sound back in memory:
+Only a part of that package is included: the modules needed to read an MPEG transport stream or a
+fragmented MP4 stream from memory, decode H.264 video and AAC sound, and hand pictures and sound back in
+memory:
 
   access\libimem_plugin.dll                    stream_filter\libprefetch_plugin.dll
   stream_filter\libcache_read_plugin.dll       demux\libts_plugin.dll
@@ -37,6 +38,7 @@ decode H.264 video and AAC sound, and hand pictures and sound back in memory:
   audio_filter\libaudio_format_plugin.dll      audio_filter\libspeex_resampler_plugin.dll
   audio_filter\libugly_resampler_plugin.dll    audio_filter\libsimple_channel_mixer_plugin.dll
   audio_filter\libtrivial_channel_mixer_plugin.dll   text_renderer\libtdummy_plugin.dll
+  demux\libmp4_plugin.dll
 
 Each of these modules declares the LGPL 2.1 or later as its licence (the licence entry compiled into the
 module). The modules of VLC that are under the GNU General Public License (for example the x264 encoder)
@@ -52,6 +54,7 @@ the VLC source tree above, which names the download address of each):
   LAME (LGPL 2 or later), OpenJPEG (BSD 2-clause), libgsm (permissive, TU Berlin), zlib (zlib licence):
       linked into FFmpeg.
   libdvbpsi (LGPL 2.1 or later) in libts_plugin.dll.
+  zlib (zlib licence) in libmp4_plugin.dll.
   Speex resampler (BSD 3-clause, Xiph.Org Foundation and others) in libspeex_resampler_plugin.dll.
   Small runtime libraries of VideoLAN's toolchain, such as the gettext runtime (LGPL 2.1 or later) and
       the mingw-w64 runtime, in libvlccore.dll and the modules.

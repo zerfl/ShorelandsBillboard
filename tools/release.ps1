@@ -22,10 +22,10 @@ $packages = @(
     @{ Id = 'VideoLAN.LibVLC.Windows'; Version = '3.0.24'; Sha256 = '3da3f37ee2b2b10e5c788d830a3b513658c36521ea1b0f966ed86eb69f41ef3c' },
     @{ Id = 'LibVLCSharp'; Version = '3.10.2'; Sha256 = 'a7473e6d7c3595c74d3fb42bb0791053224d07b797adcee8c16f00e6f99bb8f9' }
 )
-# The libVLC modules that ship (plugins\<folder>\lib<name>_plugin.dll): the callback input, MPEG-TS, H.264 and
+# The libVLC modules that ship (plugins\<folder>\lib<name>_plugin.dll): the callback input, MPEG-TS, MP4, H.264 and
 # AAC through libavcodec, picture and sound into memory, and the converters between them. All are LGPL.
 $modules = @(
-    'access/imem', 'stream_filter/prefetch', 'stream_filter/cache_read', 'demux/ts',
+    'access/imem', 'stream_filter/prefetch', 'stream_filter/cache_read', 'demux/ts', 'demux/mp4',
     'packetizer/packetizer_h264', 'packetizer/packetizer_mpeg4audio', 'codec/avcodec',
     'audio_output/amem', 'audio_mixer/integer_mixer', 'audio_mixer/float_mixer', 'audio_filter/audio_format',
     'audio_filter/speex_resampler', 'audio_filter/ugly_resampler', 'audio_filter/trivial_channel_mixer',
