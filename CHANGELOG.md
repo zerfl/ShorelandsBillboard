@@ -3,7 +3,7 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), the version numbers
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.1.0] - Unreleased
+## [1.1.0] - 2026-11-21
 
 Until now, changing the channel meant leaving the pond and opening a text file. The billboard has a remote
 now, so you can stay on the bench.
