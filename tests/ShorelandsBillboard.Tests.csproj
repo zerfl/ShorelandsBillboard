@@ -9,11 +9,22 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="..\src\Core\*.cs" />
-    <Reference Include="Newtonsoft.Json"><HintPath>$(GameManaged)\Newtonsoft.Json.dll</HintPath></Reference>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>$(GameManaged)\Newtonsoft.Json.dll</HintPath>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
-    <RuntimeHostConfigurationOption Include="ShorelandsBillboard.Tests.Fixtures" Value="$(MSBuildProjectDirectory)\fixtures" />
-    <RuntimeHostConfigurationOption Include="ShorelandsBillboard.Tests.Art" Value="$(MSBuildProjectDirectory)\..\art" />
-    <RuntimeHostConfigurationOption Include="ShorelandsBillboard.Tests.Managed" Value="$(GameManaged)" />
+    <RuntimeHostConfigurationOption
+      Include="ShorelandsBillboard.Tests.Fixtures"
+      Value="$(MSBuildProjectDirectory)\fixtures"
+    />
+    <RuntimeHostConfigurationOption
+      Include="ShorelandsBillboard.Tests.Art"
+      Value="$(MSBuildProjectDirectory)\..\art"
+    />
+    <RuntimeHostConfigurationOption
+      Include="ShorelandsBillboard.Tests.Managed"
+      Value="$(GameManaged)"
+    />
   </ItemGroup>
 </Project>

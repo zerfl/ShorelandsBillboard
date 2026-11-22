@@ -3,7 +3,13 @@ using System.Collections.Generic;
 
 namespace ShorelandsBillboard.Core
 {
-    public enum AddResult { Added, Invalid, Duplicate, Full }
+    public enum AddResult
+    {
+        Added,
+        Invalid,
+        Duplicate,
+        Full,
+    }
 
     // The channel list of the remote. In the settings file it is one comma-separated value; the first entry
     // is the default, the channel the billboard starts on.
@@ -18,9 +24,11 @@ namespace ShorelandsBillboard.Core
         {
             string t = (typed ?? "").Trim();
             int at = t.IndexOf("twitch.tv/", StringComparison.OrdinalIgnoreCase);
-            if (at >= 0) t = t.Substring(at + "twitch.tv/".Length);
+            if (at >= 0)
+                t = t.Substring(at + "twitch.tv/".Length);
             int end = t.IndexOfAny(new[] { '/', '?', '#' });
-            if (end >= 0) t = t.Substring(0, end);
+            if (end >= 0)
+                t = t.Substring(0, end);
             t = t.TrimStart('@').ToLowerInvariant();
             return Twitch.ValidChannel(t) ? t : null;
         }
@@ -32,7 +40,8 @@ namespace ShorelandsBillboard.Core
             foreach (string part in (text ?? "").Split(',', ';'))
             {
                 string name = Clean(part);
-                if (name != null && !list.Contains(name) && list.Count < Max) list.Add(name);
+                if (name != null && !list.Contains(name) && list.Count < Max)
+                    list.Add(name);
             }
             return list;
         }
@@ -46,11 +55,13 @@ namespace ShorelandsBillboard.Core
             foreach (string raw in (cfgText ?? "").Split('\n'))
             {
                 string line = raw.Trim();
-                if (line.StartsWith("[")) inSection = line.StartsWith("[Billboard]", StringComparison.OrdinalIgnoreCase);
+                if (line.StartsWith("["))
+                    inSection = line.StartsWith("[Billboard]", StringComparison.OrdinalIgnoreCase);
                 else if (inSection && !line.StartsWith("#"))
                 {
                     int eq = line.IndexOf('=');
-                    if (eq > 0 && line.Substring(0, eq).Trim() == "Channels") return true;
+                    if (eq > 0 && line.Substring(0, eq).Trim() == "Channels")
+                        return true;
                 }
             }
             return false;
@@ -62,14 +73,18 @@ namespace ShorelandsBillboard.Core
         {
             string channel = Clean(channelValue);
             List<string> list;
-            if (HasListKey(cfgText)) list = Parse(listValue);
+            if (HasListKey(cfgText))
+                list = Parse(listValue);
             else
             {
                 list = new List<string>();
-                if (channel != null) list.Add(channel);
-                if (!list.Contains(Shipped)) list.Add(Shipped);
+                if (channel != null)
+                    list.Add(channel);
+                if (!list.Contains(Shipped))
+                    list.Add(Shipped);
             }
-            if (list.Count == 0) list.Add(channel ?? Shipped);
+            if (list.Count == 0)
+                list.Add(channel ?? Shipped);
             current = list[0];
             return list;
         }
@@ -80,17 +95,22 @@ namespace ShorelandsBillboard.Core
         {
             var list = Parse(listValue);
             string channel = Clean(channelValue);
-            if (channel != null && !list.Contains(channel) && list.Count < Max) list.Add(channel);
-            if (list.Count == 0) list.Add(Shipped);
+            if (channel != null && !list.Contains(channel) && list.Count < Max)
+                list.Add(channel);
+            if (list.Count == 0)
+                list.Add(Shipped);
             return list;
         }
 
         public static AddResult Add(List<string> list, string typed, out string name)
         {
             name = Clean(typed);
-            if (name == null) return AddResult.Invalid;
-            if (list.Contains(name)) return AddResult.Duplicate;
-            if (list.Count >= Max) return AddResult.Full;
+            if (name == null)
+                return AddResult.Invalid;
+            if (list.Contains(name))
+                return AddResult.Duplicate;
+            if (list.Count >= Max)
+                return AddResult.Full;
             list.Add(name);
             return AddResult.Added;
         }
@@ -100,16 +120,19 @@ namespace ShorelandsBillboard.Core
         public static bool Remove(List<string> list, string name, ref string current)
         {
             int i = list.IndexOf(name);
-            if (i < 0 || list.Count <= 1) return false;
+            if (i < 0 || list.Count <= 1)
+                return false;
             list.RemoveAt(i);
-            if (current == name) current = list[Math.Min(i, list.Count - 1)];
+            if (current == name)
+                current = list[Math.Min(i, list.Count - 1)];
             return true;
         }
 
         public static bool MoveToTop(List<string> list, string name)
         {
             int i = list.IndexOf(name);
-            if (i <= 0) return false;
+            if (i <= 0)
+                return false;
             list.RemoveAt(i);
             list.Insert(0, name);
             return true;
@@ -119,9 +142,11 @@ namespace ShorelandsBillboard.Core
         // going forward, the last going back.
         public static string Step(IList<string> list, string current, int step)
         {
-            if (list.Count == 0) return current;
+            if (list.Count == 0)
+                return current;
             int i = list.IndexOf(current);
-            if (i < 0) return step > 0 ? list[0] : list[list.Count - 1];
+            if (i < 0)
+                return step > 0 ? list[0] : list[list.Count - 1];
             return list[((i + step) % list.Count + list.Count) % list.Count];
         }
 
@@ -138,14 +163,21 @@ namespace ShorelandsBillboard.Core
 
         public string Pending { get; private set; }
 
-        public void Request(string channel, double now) { Pending = channel; at = now + Delay; }
+        public void Request(string channel, double now)
+        {
+            Pending = channel;
+            at = now + Delay;
+        }
+
         public void Cancel() => Pending = null;
 
         // The channel to switch to now, or null.
         public string Due(double now, string current)
         {
-            if (Pending == null || now < at) return null;
-            string p = Pending; Pending = null;
+            if (Pending == null || now < at)
+                return null;
+            string p = Pending;
+            Pending = null;
             return p == current ? null : p;
         }
     }

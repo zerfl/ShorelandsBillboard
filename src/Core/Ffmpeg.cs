@@ -11,8 +11,11 @@ namespace ShorelandsBillboard.Core
         // else next to the plugin. Null when there is none.
         public static string Find(string configured, string path, string localAppData, string pluginDir)
         {
-            if (!string.IsNullOrWhiteSpace(configured)) return File.Exists(configured) ? configured : null;
-            foreach (var c in Candidates(path, localAppData, pluginDir)) if (File.Exists(c)) return c;
+            if (!string.IsNullOrWhiteSpace(configured))
+                return File.Exists(configured) ? configured : null;
+            foreach (var c in Candidates(path, localAppData, pluginDir))
+                if (File.Exists(c))
+                    return c;
             return null;
         }
 
@@ -21,7 +24,8 @@ namespace ShorelandsBillboard.Core
             foreach (var dir in (path ?? "").Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries))
             {
                 string d = dir.Trim().Trim('"');
-                if (d.Length > 0) yield return Path.Combine(d, "ffmpeg.exe");
+                if (d.Length > 0)
+                    yield return Path.Combine(d, "ffmpeg.exe");
             }
             if (!string.IsNullOrEmpty(localAppData))
             {
@@ -30,10 +34,11 @@ namespace ShorelandsBillboard.Core
                 string packages = Path.Combine(winget, "Packages");
                 if (Directory.Exists(packages))
                     foreach (var pkg in Directory.GetDirectories(packages, "Gyan.FFmpeg*"))
-                        foreach (var build in Directory.GetDirectories(pkg))
-                            yield return Path.Combine(build, "bin", "ffmpeg.exe");
+                    foreach (var build in Directory.GetDirectories(pkg))
+                        yield return Path.Combine(build, "bin", "ffmpeg.exe");
             }
-            if (!string.IsNullOrEmpty(pluginDir)) yield return Path.Combine(pluginDir, "ffmpeg.exe");
+            if (!string.IsNullOrEmpty(pluginDir))
+                yield return Path.Combine(pluginDir, "ffmpeg.exe");
         }
     }
 
@@ -42,9 +47,11 @@ namespace ShorelandsBillboard.Core
         public static string VlcDir(string pluginDir) => Path.Combine(pluginDir, "libvlc");
 
         public static bool VlcInstalled(string pluginDir) =>
-            File.Exists(Path.Combine(pluginDir, "LibVLCSharp.dll")) && File.Exists(Path.Combine(VlcDir(pluginDir), "libvlc.dll"))
+            File.Exists(Path.Combine(pluginDir, "LibVLCSharp.dll"))
+            && File.Exists(Path.Combine(VlcDir(pluginDir), "libvlc.dll"))
             && File.Exists(Path.Combine(VlcDir(pluginDir), "libvlccore.dll"));
 
-        public static bool UseVlc(string configured, bool usable) => configured == "vlc" || configured != "ffmpeg" && usable;
+        public static bool UseVlc(string configured, bool usable) =>
+            configured == "vlc" || configured != "ffmpeg" && usable;
     }
 }

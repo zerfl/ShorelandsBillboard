@@ -8,22 +8,34 @@ namespace ShorelandsBillboard.Core
     public static class Layout
     {
         public const int Ppu = 32;
-        public const int FrameW = 210, FrameH = 155;
-        public const int ScreenW = 184, ScreenH = 104;           // the picture; 16:9 within half a pixel
-        public const int PictureX = 13, PictureTop = 24;          // in the frame image, from its top-left
-        public const int Overlap = 2;                             // bezel pixels over each picture edge
+        public const int FrameW = 210,
+            FrameH = 155;
+        public const int ScreenW = 184,
+            ScreenH = 104; // the picture; 16:9 within half a pixel
+        public const int PictureX = 13,
+            PictureTop = 24; // in the frame image, from its top-left
+        public const int Overlap = 2; // bezel pixels over each picture edge
         public const int SortLift = 7;
-        public const int PlateTop = 138, PlateH = 11, PlatePad = 3, GlyphW = 6, GlyphH = 7, MaxName = 25;
+        public const int PlateTop = 138,
+            PlateH = 11,
+            PlatePad = 3,
+            GlyphW = 6,
+            GlyphH = 7,
+            MaxName = 25;
         public const string Glyphs = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_";
-        public const int ShadowW = FrameW + 8, ShadowH = 14;
-        public const int LanternX = 6, LanternTop = 33;           // in the frame image; mirrored on the right
+        public const int ShadowW = FrameW + 8,
+            ShadowH = 14;
+        public const int LanternX = 6,
+            LanternTop = 33; // in the frame image; mirrored on the right
 
         // Default place: the hedge line north of the town pond, east of the sign at x -63..-62.
-        public const float DefaultX = -58.5f, DefaultY = 6.21875f;
+        public const float DefaultX = -58.5f,
+            DefaultY = 6.21875f;
 
         // The hedge the base stands in, as it stands in game 0.69g: seven bushes 1 unit apart on one line. The
         // billboard is only built where every one of them is found.
-        public const float HedgeFirstX = -63.5f, HedgeY = 6.5f;
+        public const float HedgeFirstX = -63.5f,
+            HedgeY = 6.5f;
         public const int HedgeBushes = 7;
 
         public static bool IsHedge(System.Collections.Generic.IEnumerable<(float x, float y)> bushCentres)
@@ -31,32 +43,62 @@ namespace ShorelandsBillboard.Core
             int found = 0;
             foreach (var (x, y) in bushCentres)
             {
-                float along = x - HedgeFirstX; int n = (int)Math.Round(along);
-                if (n < 0 || n >= HedgeBushes || Math.Abs(along - n) > 0.1f || Math.Abs(y - HedgeY) > 0.1f) continue;
+                float along = x - HedgeFirstX;
+                int n = (int)Math.Round(along);
+                if (n < 0 || n >= HedgeBushes || Math.Abs(along - n) > 0.1f || Math.Abs(y - HedgeY) > 0.1f)
+                    continue;
                 found |= 1 << n;
             }
             return found == (1 << HedgeBushes) - 1;
         }
 
         // Measured in game: the player's body box reaches 0.25 above its position, its sprite 0.92.
-        public const float PlayerBodyTop = 0.25f, PlayerSpriteTop = 0.92f;
+        public const float PlayerBodyTop = 0.25f,
+            PlayerSpriteTop = 0.92f;
 
         public struct Rect
         {
-            public float X, Y, W, H;
+            public float X,
+                Y,
+                W,
+                H;
             public float Right => X + W;
             public float Top => Y + H;
+
             public bool Contains(float x, float y) => x > X && x < Right && y > Y && y < Top;
+
             public bool Overlaps(Rect o) => X < o.Right && o.X < Right && Y < o.Top && o.Y < Top;
-            public Rect At(float x, float y) => new Rect { X = X + x, Y = Y + y, W = W, H = H };
+
+            public Rect At(float x, float y) =>
+                new Rect
+                {
+                    X = X + x,
+                    Y = Y + y,
+                    W = W,
+                    H = H,
+                };
         }
 
-        static Rect Px(int x, int y, int w, int h) => new Rect { X = x / (float)Ppu, Y = y / (float)Ppu, W = w / (float)Ppu, H = h / (float)Ppu };
+        static Rect Px(int x, int y, int w, int h) =>
+            new Rect
+            {
+                X = x / (float)Ppu,
+                Y = y / (float)Ppu,
+                W = w / (float)Ppu,
+                H = h / (float)Ppu,
+            };
 
         // lower-left corners relative to the origin
         public static Rect Frame => Px(-FrameW / 2, -SortLift, FrameW, FrameH);
-        public static Rect Screen => Px(-FrameW / 2 + PictureX, -SortLift + FrameH - PictureTop - ScreenH, ScreenW, ScreenH);
-        public static Rect Opening => Px(-FrameW / 2 + PictureX + Overlap, -SortLift + FrameH - PictureTop - ScreenH + Overlap, ScreenW - 2 * Overlap, ScreenH - 2 * Overlap);
+        public static Rect Screen =>
+            Px(-FrameW / 2 + PictureX, -SortLift + FrameH - PictureTop - ScreenH, ScreenW, ScreenH);
+        public static Rect Opening =>
+            Px(
+                -FrameW / 2 + PictureX + Overlap,
+                -SortLift + FrameH - PictureTop - ScreenH + Overlap,
+                ScreenW - 2 * Overlap,
+                ScreenH - 2 * Overlap
+            );
         public static Rect Shadow => Px(-ShadowW / 2, -SortLift - ShadowH / 2 + 2, ShadowW, ShadowH);
 
         // The base blocks like the hedge it replaces: a strip as deep as the game's bush and bench colliders,
@@ -66,9 +108,14 @@ namespace ShorelandsBillboard.Core
 
         // Where the game's lit lantern sprite goes: over the unlit bulbs drawn on the posts.
         public static (float x, float y) Lantern(bool right) =>
-            ((right ? FrameW / 2 - LanternX : -FrameW / 2 + LanternX) / (float)Ppu, (-SortLift + FrameH - LanternTop) / (float)Ppu);
+            (
+                (right ? FrameW / 2 - LanternX : -FrameW / 2 + LanternX) / (float)Ppu,
+                (-SortLift + FrameH - LanternTop) / (float)Ppu
+            );
 
-        public static int PlateWidth(int letters) => GlyphW * Math.Min(Math.Max(letters, 1), MaxName) - 1 + 2 * PlatePad;
+        public static int PlateWidth(int letters) =>
+            GlyphW * Math.Min(Math.Max(letters, 1), MaxName) - 1 + 2 * PlatePad;
+
         public static Rect Plate(int letters)
         {
             int w = PlateWidth(letters);
@@ -80,7 +127,8 @@ namespace ShorelandsBillboard.Core
         {
             var sb = new System.Text.StringBuilder();
             foreach (char c in (channel ?? "").ToUpperInvariant())
-                if (Glyphs.IndexOf(c) >= 0 && sb.Length < MaxName) sb.Append(c);
+                if (Glyphs.IndexOf(c) >= 0 && sb.Length < MaxName)
+                    sb.Append(c);
             return sb.ToString();
         }
 
@@ -102,7 +150,8 @@ namespace ShorelandsBillboard.Core
         public static void DisplaySize(int windowHeight, out int w, out int h)
         {
             double scale = Math.Max(1.0, windowHeight / 360.0);
-            w = (int)Math.Round(ScreenW * scale); h = (int)Math.Round(ScreenH * scale);
+            w = (int)Math.Round(ScreenW * scale);
+            h = (int)Math.Round(ScreenH * scale);
         }
     }
 
@@ -111,8 +160,10 @@ namespace ShorelandsBillboard.Core
         // Full volume up to `near` from the screen, silent from `far` on, squared fade between.
         public static float Falloff(float distance, float near, float far)
         {
-            if (distance <= near) return 1f;
-            if (distance >= far || far <= near) return 0f;
+            if (distance <= near)
+                return 1f;
+            if (distance >= far || far <= near)
+                return 0f;
             float t = (far - distance) / (far - near);
             return t * t;
         }
@@ -132,12 +183,32 @@ namespace ShorelandsBillboard.Core
     // stream start, so the picture can follow the sound. A full buffer drops the oldest.
     public sealed class SampleRing
     {
-        readonly float[] buf; long written, read;
+        readonly float[] buf;
+        long written,
+            read;
         readonly object gate = new object();
-        public SampleRing(int capacity) { buf = new float[capacity & ~1]; }
 
-        public long Written { get { lock (gate) return written; } }
-        public long ReadPosition { get { lock (gate) return read; } }
+        public SampleRing(int capacity)
+        {
+            buf = new float[capacity & ~1];
+        }
+
+        public long Written
+        {
+            get
+            {
+                lock (gate)
+                    return written;
+            }
+        }
+        public long ReadPosition
+        {
+            get
+            {
+                lock (gate)
+                    return read;
+            }
+        }
 
         public void Write(float[] src, int n)
         {
@@ -145,13 +216,17 @@ namespace ShorelandsBillboard.Core
             {
                 int skip = Math.Max(0, n - buf.Length);
                 written += skip;
-                for (int left = n - skip, from = skip; left > 0;)
+                for (int left = n - skip, from = skip; left > 0; )
                 {
-                    int at = (int)(written % buf.Length), run = Math.Min(left, buf.Length - at);
+                    int at = (int)(written % buf.Length),
+                        run = Math.Min(left, buf.Length - at);
                     Array.Copy(src, from, buf, at, run);
-                    written += run; from += run; left -= run;
+                    written += run;
+                    from += run;
+                    left -= run;
                 }
-                if (written - read > buf.Length) read = written - buf.Length;
+                if (written - read > buf.Length)
+                    read = written - buf.Length;
             }
         }
 
@@ -168,17 +243,23 @@ namespace ShorelandsBillboard.Core
             lock (gate)
             {
                 int n = (int)Math.Min(count, written - read);
-                for (int done = 0; done < n;)
+                for (int done = 0; done < n; )
                 {
-                    int at = (int)(read % buf.Length), run = Math.Min(n - done, buf.Length - at);
+                    int at = (int)(read % buf.Length),
+                        run = Math.Min(n - done, buf.Length - at);
                     Array.Copy(buf, at, dst, offset + done, run);
-                    read += run; done += run;
+                    read += run;
+                    done += run;
                 }
                 return n;
             }
         }
 
-        public void Skip(long n) { lock (gate) read = n >= written - read ? written : read + n; }
+        public void Skip(long n)
+        {
+            lock (gate)
+                read = n >= written - read ? written : read + n;
+        }
     }
 
     // Where in the stream the sound is, for the picture to follow. The engine takes sound a block at a time,
@@ -187,17 +268,27 @@ namespace ShorelandsBillboard.Core
     public sealed class AudioClock
     {
         public const double Window = 1.5;
-        readonly double[] at = new double[512], lead = new double[512];
-        int next, count;
+        readonly double[] at = new double[512],
+            lead = new double[512];
+        int next,
+            count;
 
-        public void Reset() { next = count = 0; }
+        public void Reset()
+        {
+            next = count = 0;
+        }
 
         public double Position(double readSeconds, double clockSeconds)
         {
-            at[next] = clockSeconds; lead[next] = readSeconds - clockSeconds;
-            next = (next + 1) % at.Length; if (count < at.Length) count++;
+            at[next] = clockSeconds;
+            lead[next] = readSeconds - clockSeconds;
+            next = (next + 1) % at.Length;
+            if (count < at.Length)
+                count++;
             double min = double.MaxValue;
-            for (int i = 0; i < count; i++) if (clockSeconds - at[i] <= Window && lead[i] < min) min = lead[i];
+            for (int i = 0; i < count; i++)
+                if (clockSeconds - at[i] <= Window && lead[i] < min)
+                    min = lead[i];
             return clockSeconds + min;
         }
     }
