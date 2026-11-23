@@ -70,7 +70,7 @@ namespace ShorelandsBillboard
             builtAt,
             configCheckAt,
             sharpCheckAt;
-        int builtForHeight;
+        double builtForScale;
 
         // fail safe: what went wrong is logged once, then the billboard stays off
         bool dead,
@@ -310,8 +310,15 @@ namespace ShorelandsBillboard
                 townTries = 0; // looked for again at the next login
                 return;
             }
-            // the scene went away under it; the sound device changed; the sharp picture is decoded at the window's size
-            if (world != null && (world.Root == null || audioChanged || world.Sharp && Screen.height != builtForHeight))
+            // the scene went away under it; the sound device changed; the sharp picture is decoded at its size on screen
+            if (
+                world != null
+                && (
+                    world.Root == null
+                    || audioChanged
+                    || world.Sharp && Math.Abs(SharpScale(world) - builtForScale) > 0.01
+                )
+            )
                 Teardown();
             audioChanged = false;
             // sharp is possible or not as the window's shape changes; the cameras settle a moment after a resize
@@ -399,7 +406,7 @@ namespace ShorelandsBillboard
             }
             townTries = 0;
             world = new World(town, Place + new Vector2(offsetX.Value, offsetY.Value), sharp.Value, channel.Value);
-            builtForHeight = Screen.height;
+            builtForScale = SharpScale(world);
             builtAt = now;
             sharpCheckAt = now + 1;
             // a silent clip keeps the source playing; the sound itself goes in through the tap
@@ -629,7 +636,7 @@ namespace ShorelandsBillboard
             int w = Layout.ScreenW,
                 h = Layout.ScreenH;
             if (world.Sharp)
-                Layout.DisplaySize(Screen.height, out w, out h);
+                Layout.DisplaySize(SharpScale(world), out w, out h);
             int rate = AudioSettings.outputSampleRate > 0 ? AudioSettings.outputSampleRate : 48000;
             string dir = Path.GetDirectoryName(Info.Location);
             bool installed = Backend.VlcInstalled(dir);
@@ -898,6 +905,10 @@ namespace ShorelandsBillboard
                 listener = null;
             }
         }
+
+        // Since 0.69i the game sizes its pixel-art view to the window, so art pixels per window pixel vary.
+        static double SharpScale(World world) =>
+            world.UiCamera == null ? 1.0 : Layout.PixelScale(Screen.height, world.UiCamera.orthographicSize);
 
         // The sharp picture needs the game's world UI camera this frame, whatever switched it off.
         void KeepWorldUiCamera()

@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <!-- Compiles against the game's own assemblies (Unity 6 Mono) instead of .NET reference packs. -->
   <PropertyGroup>
-    <Version>1.1.0</Version>
+    <Version>1.1.1</Version>
     <TargetFramework>netstandard2.1</TargetFramework>
     <AssemblyName>ShorelandsBillboard</AssemblyName>
     <RootNamespace>ShorelandsBillboard</RootNamespace>

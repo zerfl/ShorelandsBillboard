@@ -158,8 +158,8 @@ namespace ShorelandsBillboard
         }
 
         // The game's overlay camera for name tags and speech bubbles, if it is there, draws one layer and
-        // maps the world as the main camera does. In a window that is not 16:9 the main camera letterboxes
-        // and the overlay does not: what it draws is squeezed sideways.
+        // maps the world as the main camera does. Before 0.69i, in a window that is not 16:9 the main camera
+        // letterboxed and the overlay did not: what it drew was squeezed sideways.
         public static Camera FindUiCamera(out int layer)
         {
             layer = -1;

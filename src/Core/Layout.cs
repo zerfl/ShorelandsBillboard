@@ -146,10 +146,14 @@ namespace ShorelandsBillboard.Core
         // YPositionSorter.OrderForY: lower on screen draws in front
         public static int OrderForY(float y) => (int)Math.Round(-y * 100f);
 
-        // The picture's size in window pixels: the main camera shows 360 art pixels over the window height.
-        public static void DisplaySize(int windowHeight, out int w, out int h)
+        // Window pixels per art pixel for a camera showing `orthographicSize` world units above and below centre.
+        public static double PixelScale(int windowHeight, float orthographicSize) =>
+            orthographicSize > 0 ? windowHeight / (2.0 * orthographicSize * Ppu) : 1.0;
+
+        // The picture's size in window pixels.
+        public static void DisplaySize(double pixelScale, out int w, out int h)
         {
-            double scale = Math.Max(1.0, windowHeight / 360.0);
+            double scale = Math.Max(1.0, pixelScale);
             w = (int)Math.Round(ScreenW * scale);
             h = (int)Math.Round(ScreenH * scale);
         }

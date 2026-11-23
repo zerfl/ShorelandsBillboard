@@ -1022,12 +1022,14 @@ static class Program
             "the lit lantern sprites sit on the bulbs drawn on the posts (glass 4 px wide between outlines)"
         );
 
-        Layout.DisplaySize(1080, out int w, out int h);
-        Layout.DisplaySize(1440, out int w2, out int h2);
-        Layout.DisplaySize(200, out int w3, out int h3);
+        // orthographic sizes as the game's pixel-perfect camera sets them (view height / 2 / 32)
+        Layout.DisplaySize(Layout.PixelScale(1080, 360 / 64f), out int w, out int h);
+        Layout.DisplaySize(Layout.PixelScale(1440, 360 / 64f), out int w2, out int h2);
+        Layout.DisplaySize(Layout.PixelScale(900, 450 / 64f), out int w4, out int h4);
+        Layout.DisplaySize(Layout.PixelScale(200, 360 / 64f), out int w3, out int h3);
         Check(
-            w == 552 && h == 312 && w2 == 736 && h2 == 416 && w3 == 184 && h3 == 104,
-            "picture size in window pixels: 3x at 1080p, 4x at 1440p, never below the art size"
+            w == 552 && h == 312 && w2 == 736 && h2 == 416 && w4 == 368 && h4 == 208 && w3 == 184 && h3 == 104,
+            "picture size in window pixels: 3x at 1080p, 4x at 1440p, 2x for a 1600x900 window's 800x450 view, never below the art size"
         );
 
         // against the game's own sorter

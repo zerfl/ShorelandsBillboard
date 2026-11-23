@@ -3,6 +3,19 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), the version numbers
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.1] - 2026-11-23
+
+The pond got roomier in the game's 0.69i update: the game now fits its view to your window instead of
+always showing 640x360. The billboard kept squinting as if nothing had changed.
+
+### Fixed
+
+- **The sharp picture matches its size on your screen again.** The billboard now asks the game's camera how
+  big an art pixel is in your window and decodes the stream at exactly the picture's size, instead of
+  assuming 360 art pixels over the window height. In a 1600x900 window it no longer decodes a picture a
+  quarter larger than the one it shows, and a resize that changes the game's zoom, even one that only
+  changes the width, rebuilds the picture at the new size.
+
 ## [1.1.0] - 2026-11-21
 
 Until now, changing the channel meant leaving the pond and opening a text file. The billboard has a remote

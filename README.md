@@ -30,7 +30,7 @@ Nothing else. The video decoder (libVLC) comes with the mod.
 3. If you do not have BepInEx yet: unzip `BepInEx_win_x64_5.4.23.6.zip` into that folder, so that
    `winhttp.dll` and the `BepInEx` folder lie next to `Shorelands.exe`. Start the game once and close it
    again; BepInEx then creates its folders.
-4. Download `ShorelandsBillboard-1.1.0.zip` from the
+4. Download `ShorelandsBillboard-1.1.1.zip` from the
    [releases page](https://github.com/zerfl/ShorelandsBillboard/releases) and unzip it into the same folder. You should now have
    `BepInEx\plugins\ShorelandsBillboard\ShorelandsBillboard.dll`.
 5. Start the game and log in.
